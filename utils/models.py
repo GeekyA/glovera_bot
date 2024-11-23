@@ -5,8 +5,8 @@ from fastapi import File, UploadFile
 
 class User(BaseModel):
     id: int
-    username: str
-    email: str
+    # username: str
+    # email: str
 
 
 class Message(BaseModel):

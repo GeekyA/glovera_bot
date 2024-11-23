@@ -7,7 +7,7 @@ def get_db_connection():
     client = MongoClient(os.getenv('MONGO_URI'), server_api=ServerApi('1'))
     try:
         client.admin.command('ping')
-        quire_db = client.get_database('quire_db')
+        quire_db = client.get_database('glovera_db')
         logging.info("Successfully connected to MongoDB!")
         return quire_db
     except Exception as e:
@@ -16,4 +16,4 @@ def get_db_connection():
 
 def get_conversations_collection():
     db = get_db_connection()
-    return db.get_collection('conversations') 
+    return db.get_collection('Conversation') 
