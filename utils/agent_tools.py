@@ -48,7 +48,7 @@ query_mongo_db_desc = {
     "university_name": University name,
     "university_location": University location,
     "global_rank": University ranking,
-    "english_requirements": Minimum language scores,
+    "english_requirements": Minimum language scores, contains three more fields ( {"ielts": ielts_score, "toefl": toefl_score, "pte"pte_score})
     "min_gpa": Required GPA,
     "work_experience": Relevant work experience,
     "intake_date": Course start date,

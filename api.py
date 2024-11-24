@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ValidationError
 from datetime import datetime
 
-from utils.database import get_conversations_collection
+from utils.database import get_collection_by_name, get_db_connection
 from llm.glovera_chat import OpenAIConversation
 from llm.openai_tts import generate_speech
 from llm.groq_stt import stt
@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 router = FastAPI()
 
 # MongoDB collection
-conversations_collection = get_conversations_collection()
+db = get_db_connection()
+conversations_collection = get_collection_by_name(db, 'Conversation')
+users_collection = get_collection_by_name(db,'Profile')
 
 
 @router.post("/start_conversation/")
@@ -44,7 +46,15 @@ async def start_conversation(
     get_audio_response: bool = Form(False),
 ):
     response = {"success": False, "message": "", "data": None}
+    print({"userId":ObjectId(user_id)})
+    user_info = users_collection.find_one({"userId":ObjectId(user_id)})
+    
+    if not user_info:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
+
+    user_info = dict([(i,user_info[i]) for i in user_info if i != '_id' and i != 'userId'])
+    print(user_info)
     try:
         # Initialize conversation
         prompt_system = """You are an AI consultant to help users who want to study abroad.
@@ -66,12 +76,27 @@ async def start_conversation(
         Examples:
         - If user asks about "CS in UK": Use query with "computer|computing" for course and "uk|united kingdom|england" for location
         - If user asks about "MBA in USA": Use query with "business|mba|administration" for course and "usa|united states" for location
+        For more info here is the db schema as well
+            "course_name": Name of the course,
+            "degree_type": Type of degree (e.g., M.Sc.),
+            "tuition_fee": Course fee,
+            "duration": Course length (e.g., '1 year'),
+            "university_name": University name,
+            "university_location": University location,
+            "global_rank": University ranking,
+            "english_requirements": Minimum language scores, contains three more fields ( {"ielts": ielts_score, "toefl": toefl_score, "pte"pte_score})
+            "min_gpa": Required GPA,
+            "work_experience": Relevant work experience,
+            "intake_date": Course start date,
+            "application_deadline": Application deadline
 
         NEVER skip the database query - it's essential for providing accurate information.
         The query will be automatically called in the background and you never show the query to the user, just use the data 
         returned by the query to augment your response
         Tailor your responses keeping in mind that they'll be parsed by a Text-to-speech model
         In a natural human-like conversation. Your responses will be sent to a TTS system, so go light on bullet points."""
+
+        prompt_system += f"Also, here is some additional information about the user to help you respond better {user_info}"
 
         initial_message = (
             "Hi, I am an AI consultant who'll help you find the best universities abroad. "
