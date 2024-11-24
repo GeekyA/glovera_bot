@@ -8,6 +8,7 @@ def get_db_connection():
     try:
         client.admin.command('ping')
         quire_db = client.get_database('glovera_db')
+        print("connected to db!")
         logging.info("Successfully connected to MongoDB!")
         return quire_db
     except Exception as e:
@@ -17,3 +18,8 @@ def get_db_connection():
 def get_conversations_collection():
     db = get_db_connection()
     return db.get_collection('Conversation') 
+
+
+def get_programs_collection():
+    db = get_db_connection()
+    return db.get_collection('Program')

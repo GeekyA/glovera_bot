@@ -39,8 +39,8 @@ query_df_desc = {
 }
 
 query_mongo_db_desc = {
-    "name": "query_mongo_db",
-    "description": """this function queries a MongoDB collection with a MongoDB query. The collection contains documents with fields such as:
+    "name": "query_mongodb",
+    "description": """query_mongodb searches a MongoDB collection containing educational program information. The collection documents include fields such as:
     "course_name": Name of the course,
     "degree_type": Type of degree (e.g., M.Sc.),
     "tuition_fee": Course fee,
@@ -51,42 +51,80 @@ query_mongo_db_desc = {
     "english_requirements": Minimum language scores,
     "min_gpa": Required GPA,
     "work_experience": Relevant work experience,
-    "start_date": Course start date,
-    "apply_date": Application deadline.""",
+    "intake_date": Course start date,
+    "application_deadline": Application deadline.""",
     "parameters": {
         "type": "object",
         "properties": {
-            "mongo_query": {
+            "query": {
                 "type": "object",
-                "description": """A MongoDB query as a Python dictionary used to filter documents in the collection.
-                The query should be case-insensitive and should handle naming variations. Examples:
+                "description": """A MongoDB query object to search the collection. Queries should be case-insensitive and handle naming variations.
+                Examples:
+                1. Tell me about some good universities in the USA that teach sociology =>
+                {
+                    "$and": [
+                        { "university_location": { "$regex": "united states|usa|us", "$options": "i" } },
+                        { "course_name": { "$regex": "sociology", "$options": "i" } }
+                    ]
+                }
+
+                2. Tell me good universities in the USA for MBA =>
+                {
+                    "$and": [
+                        { "university_location": { "$regex": "united states|usa|us", "$options": "i" } },
+                        { "course_name": { "$regex": "business|administration|mba", "$options": "i" } }
+                    ]
+                }
+
+                3. Recommend computer science programs in the USA =>
+                {
+                    "$and": [
+                        { "university_location": { "$regex": "united states|usa|us", "$options": "i" } },
+                        { "course_name": { "$regex": "computer", "$options": "i" } }
+                    ]
+                }
+
+                4. Find data science programs in Canada =>
+                {
+                    "$and": [
+                        { "university_location": { "$regex": "canada", "$options": "i" } },
+                        { "course_name": { "$regex": "data.*science|science.*data", "$options": "i" } }
+                    ]
+                }
+
+                5. Engineering courses in the UK =>
+                {
+                    "$and": [
+                        { "university_location": { "$regex": "united kingdom|uk|england", "$options": "i" } },
+                        { "course_name": { "$regex": "engineering", "$options": "i" } }
+                    ]
+                }
+
+                Additional Features:
+                - Use "$options": "i" for case-insensitive matching
+                - Use "$regex" for pattern matching and handling variations
+                - Use "$or" for alternative matches
+                - Use "$and" to combine multiple conditions
+                - Use "$gte", "$lte" for numeric comparisons
+                - Use "$in" for matching multiple possible values
                 
-                1. Tell me about some good universities in the USA that teach sociology:
-                   {"university_location": {"$regex": "usa|united states|us", "$options": "i"}, 
-                    "course_name": {"$regex": "sociology", "$options": "i"}}
-                
-                2. Tell me good universities in the USA for MBA:
-                   {"university_location": {"$regex": "usa|united states|us", "$options": "i"}, 
-                    "course_name": {"$regex": "business|administration|mba", "$options": "i"}}
-                
-                3. Recommend computer science programs in the USA:
-                   {"university_location": {"$regex": "usa|united states|us", "$options": "i"}, 
-                    "course_name": {"$regex": "computer", "$options": "i"}}
-                
-                4. Find data science programs in Canada:
-                   {"university_location": {"$regex": "canada", "$options": "i"}, 
-                    "course_name": {"$regex": "data|science", "$options": "i"}}
-                
-                5. Engineering courses in the UK:
-                   {"university_location": {"$regex": "uk|united kingdom|england", "$options": "i"}, 
-                    "course_name": {"$regex": "engineering", "$options": "i"}}
-                
-                Use `$regex` for flexible, case-insensitive matching and include relevant fields for filtering.
+                Focus on creating flexible queries that can match relevant information even with variations in naming or formatting.
                 """
+            },
+            "projection": {
+                "type": "object",
+                "description": "Optional field selection object to specify which fields to return in the results",
+                "default": {}
+            },
+            "sort": {
+                "type": "object",
+                "description": "Optional sorting criteria for the results",
+                "default": {}
             }
         },
-        "required": ["mongo_query"],
+        "required": ["query"],
         "additionalProperties": False
-    },
+    }
 }
+
 
