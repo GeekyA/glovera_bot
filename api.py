@@ -54,7 +54,7 @@ async def start_conversation(
 
 
     user_info = dict([(i,user_info[i]) for i in user_info if i != '_id' and i != 'userId'])
-    print(user_info)
+    # print(user_info)
     try:
         # Initialize conversation
         prompt_system = """You are an AI consultant to help users who want to study abroad.
@@ -84,11 +84,11 @@ async def start_conversation(
             "university_name": University name,
             "university_location": University location,
             "global_rank": University ranking,
-            "english_requirements": Minimum language scores, contains three more fields ( {"ielts": ielts_score, "toefl": toefl_score, "pte"pte_score})
+            "english_requirments": Minimum language scores, contains three more fields ( {"ielts": ielts_score, "toefl": toefl_score, "pte"pte_score})
             "min_gpa": Required GPA,
             "work_experience": Relevant work experience,
-            "intake_date": Course start date,
-            "application_deadline": Application deadline
+            "start_date": Course start date,
+            "apply_date": Application deadline
 
         NEVER skip the database query - it's essential for providing accurate information.
         The query will be automatically called in the background and you never show the query to the user, just use the data 
