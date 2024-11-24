@@ -21,6 +21,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ValidationError
 from datetime import datetime
+from datetime import datetime
 
 from utils.database import get_collection_by_name, get_db_connection
 from llm.glovera_chat import OpenAIConversation
@@ -42,6 +43,8 @@ users_collection = get_collection_by_name(db,'Profile')
 
 @router.post("/start_conversation/")
 async def start_conversation(
+    user_id: str = Form(...),
+    get_audio_response: bool = Form(False),
     user_id: str = Form(...),
     get_audio_response: bool = Form(False),
 ):
@@ -106,8 +109,11 @@ async def start_conversation(
         conversation = OpenAIConversation(
             model="gpt-4o", system_prompt=prompt_system
         )
+
+        conversation = OpenAIConversation(model="gpt-4o", system_prompt=prompt_system)
         conversation.start_conversation(initial_message=initial_message)
 
+        # Create conversation document matching Prisma schema
         # Create conversation document matching Prisma schema
         conv_to_post = {
             "userId": user_id,
@@ -129,8 +135,15 @@ async def start_conversation(
         # Store in database
         result = conversations_collection.insert_one(conv_to_post)
         conversation_id = str(result.inserted_id)
+        result = conversations_collection.insert_one(conv_to_post)
+        conversation_id = str(result.inserted_id)
 
         # Generate audio if required
+        if get_audio_response:
+            try:
+                with NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+                    audio_path = temp_file.name
+                    generate_speech(initial_message, output_file=audio_path)
         if get_audio_response:
             try:
                 with NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
@@ -142,6 +155,7 @@ async def start_conversation(
                             audio_file.read()).decode("utf-8")
 
                     os.unlink(audio_path)
+                    os.unlink(audio_path)
 
                     response["success"] = True
                     response["message"] = "Conversation started successfully"
@@ -151,7 +165,25 @@ async def start_conversation(
                         "audio_response": audio_bytes,
                     }
                     return response
+                    response["success"] = True
+                    response["message"] = "Conversation started successfully"
+                    response["data"] = {
+                        "conversation_id": conversation_id,
+                        "initial_message": initial_message,
+                        "audio_response": audio_bytes,
+                    }
+                    return response
 
+            except Exception as e:
+                logger.error(f"Audio generation error: {str(e)}")
+                response["success"] = True
+                response["message"] = "Conversation started but audio generation failed"
+                response["data"] = {
+                    "conversation_id": conversation_id,
+                    "initial_message": initial_message,
+                    "error": "Failed to generate audio response",
+                }
+                return response
             except Exception as e:
                 logger.error(f"Audio generation error: {str(e)}")
                 response["success"] = True
@@ -174,13 +206,17 @@ async def start_conversation(
     except Exception as e:
         logger.error(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/continue_conversation/")
 async def continue_conversation(
     conversation_id: str = Form(...),
     message: str = Form(...),
+    message: str = Form(...),
     get_audio_response: bool = Form(False),
+    audio_base64: str = Form(None),
     audio_base64: str = Form(None),
 ):
     temp_files = []
@@ -288,6 +324,8 @@ async def continue_conversation(
     except Exception as e:
         logger.error(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     finally:
         # Cleanup temporary files
@@ -300,14 +338,13 @@ async def continue_conversation(
 
 
 @router.post("/standalone_tts")
-async def tts(
-    request: TTSRequest
-):
+async def tts(request: TTSRequest):
     response = {"success": False, "message": "", "data": None}
     logger.info(json.dumps(request.dict(), indent=2))
 
     try:
         if not request.text:
+            raise HTTPException(status_code=400, detail="Text is required")
             raise HTTPException(status_code=400, detail="Text is required")
 
         with NamedTemporaryFile(suffix=".mp3", delete=False) as temp_output:
@@ -324,7 +361,9 @@ async def tts(
 
             os.unlink(output_file)
             return response
+            return response
 
     except Exception as e:
         logger.error(f"TTS generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
         raise HTTPException(status_code=500, detail="Internal server error")
