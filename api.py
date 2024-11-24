@@ -20,6 +20,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ValidationError
+from datetime import datetime
 
 from utils.database import get_conversations_collection
 from llm.glovera_chat import OpenAIConversation
@@ -36,126 +37,131 @@ router = FastAPI()
 # MongoDB collection
 conversations_collection = get_conversations_collection()
 
+
 @router.post("/start_conversation/")
 async def start_conversation(
-    user: User = Form(),
-    get_audio_response: bool = False
+    user_id: str = Form(...),
+    get_audio_response: bool = Form(False),
 ):
     response = {"success": False, "message": "", "data": None}
 
     try:
         # Initialize conversation
         prompt_system = (
-        "You are an AI consultant to help users who want to study abroad.\n"
-        "Answer all their questions regarding courses, universities, eligibility, etc.\n"
-        "Tailor your responses keeping in mind that they'll be parsed by a Text-to-speech model\n"
-        "In a natural human-like conversation")
+            "You are an AI consultant to help users who want to study abroad.\n"
+            "Answer all their questions regarding courses, universities, eligibility, etc.\n"
+            "Tailor your responses keeping in mind that they'll be parsed by a Text-to-speech model\n"
+            "In a natural human-like conversation"
+        )
 
         initial_message = (
-        "Hi, I am an AI consultant who'll help you find the best universities abroad. "
-        "Ask me anything about where you want to study, what you want to study, your budget, "
-        "or any other questions you might have.")
-
-        conversation = OpenAIConversation(
-            model="gpt-4o", system_prompt=prompt_system
+            "Hi, I am an AI consultant who'll help you find the best universities abroad. "
+            "Ask me anything about where you want to study, what you want to study, your budget, "
+            "or any other questions you might have."
         )
+
+        conversation = OpenAIConversation(model="gpt-4o", system_prompt=prompt_system)
         conversation.start_conversation(initial_message=initial_message)
 
-        # Prepare conversation data
+        # Create conversation document matching Prisma schema
         conv_to_post = {
-            "user": user.dict(),
-            "messages": conversation.messages,
+            "userId": user_id,
+            "title": "Study Abroad Consultation",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": prompt_system,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+                {
+                    "role": "assistant",
+                    "content": initial_message,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            ],
+            "createdAt": datetime.utcnow().isoformat(),
+            "updatedAt": datetime.utcnow().isoformat(),
+            "status": "active",
         }
 
         # Store in database
-        try:
-            result = conversations_collection.insert_one(conv_to_post)
-            conversation_id = str(result.inserted_id)
-        except Exception as e:
-            logger.error(f"Database error: {str(e)}")
-            response["message"] = "Failed to store conversation"
-            return JSONResponse(status_code=500, content=response)
+        result = conversations_collection.insert_one(conv_to_post)
+        conversation_id = str(result.inserted_id)
 
         # Generate audio if required
-        try:
-            if not get_audio_response:
+        if get_audio_response:
+            try:
+                with NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+                    audio_path = temp_file.name
+                    generate_speech(initial_message, output_file=audio_path)
+
+                    with open(audio_path, "rb") as audio_file:
+                        audio_bytes = base64.b64encode(audio_file.read()).decode(
+                            "utf-8"
+                        )
+
+                    os.unlink(audio_path)
+
+                    response["success"] = True
+                    response["message"] = "Conversation started successfully"
+                    response["data"] = {
+                        "conversation_id": conversation_id,
+                        "initial_message": initial_message,
+                        "audio_response": audio_bytes,
+                    }
+                    return response
+
+            except Exception as e:
+                logger.error(f"Audio generation error: {str(e)}")
                 response["success"] = True
-                response["message"] = "Conversation started successfully"
+                response["message"] = "Conversation started but audio generation failed"
                 response["data"] = {
                     "conversation_id": conversation_id,
                     "initial_message": initial_message,
-                }
-                return response
-            with NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-                audio_path = temp_file.name
-                generate_speech(initial_message, output_file=audio_path)
-
-                with open(audio_path, "rb") as audio_file:
-                    audio_bytes = base64.b64encode(audio_file.read()).decode("utf-8")
-
-                os.unlink(audio_path)
-
-                response["success"] = True
-                response["message"] = "Conversation started successfully"
-                response["data"] = {
-                    "conversation_id": conversation_id,
-                    "initial_message": initial_message,
-                    "audio_response": audio_bytes,
+                    "error": "Failed to generate audio response",
                 }
                 return response
 
-        except Exception as e:
-            logger.error(f"Audio generation error: {str(e)}")
-            response["success"] = True
-            response["message"] = "Conversation started but audio generation failed"
-            response["data"] = {
-                "conversation_id": conversation_id,
-                "initial_message": initial_message,
-                "error": "Failed to generate audio response",
-            }
-            return response
-
-    except ValidationError as e:
-        response["message"] = str(e)
-        return JSONResponse(status_code=422, content=response)
+        response["success"] = True
+        response["message"] = "Conversation started successfully"
+        response["data"] = {
+            "conversation_id": conversation_id,
+            "initial_message": initial_message,
+        }
+        return response
 
     except Exception as e:
-        logger.error(f"Error in starting conversation: {str(e)}")
-        response["message"] = "Internal server error"
-        return JSONResponse(status_code=500, content=response)
+        logger.error(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/continue_conversation/")
 async def continue_conversation(
     conversation_id: str = Form(...),
-    user_response: str = Form(...),
+    message: str = Form(...),
     get_audio_response: bool = Form(False),
-    audio_base64: str = Form(None)
+    audio_base64: str = Form(None),
 ):
-    response = {"success": False, "message": "", "data": None}
-
     temp_files = []
-
     try:
         # Validate conversation_id format
         try:
             obj_id = ObjectId(conversation_id)
         except InvalidId:
-            response["message"] = "Invalid conversation ID format"
-            return JSONResponse(status_code=400, content=response)
+            raise HTTPException(
+                status_code=400, detail="Invalid conversation ID format"
+            )
 
         # Find the conversation
-        conversation_doc = conversations_collection.find_one({"_id": obj_id})
-        if not conversation_doc:
-            response["message"] = "Conversation not found"
-            return JSONResponse(status_code=404, content=response)
+        conversation = conversations_collection.find_one(
+            {"_id": obj_id}
+        )
 
-        # Extract messages and create conversation
-        messages = conversation_doc.get("messages", [])
-        conversation = OpenAIConversation(model="gpt-4o-mini")
-        conversation.set_conversation(conversation=messages)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
-        # Process user input (either audio_base64 or text)
+        # Process audio input if provided
+        user_message = message
         if audio_base64:
             try:
                 with NamedTemporaryFile(suffix=".wav", delete=False) as temp_input:
@@ -166,28 +172,37 @@ async def continue_conversation(
                     user_message = stt(temp_input.name, lang="en", system="")
             except Exception as e:
                 logger.error(f"Audio processing error: {str(e)}")
-                response["message"] = "Failed to process audio input"
-                return JSONResponse(status_code=500, content=response)
-        else:
-            if not user_response:
-                response["message"] = (
-                    "User response is required when audio is not provided"
+                raise HTTPException(
+                    status_code=500, detail="Failed to process audio input"
                 )
-                return JSONResponse(status_code=400, content=response)
-            user_message = user_response
+
+        # Add user message
+        new_message = {
+            "role": "user",
+            "content": user_message,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
 
         # Get AI response
-        ai_response = conversation.add_user_message(user_message)
+        ai = OpenAIConversation(model="gpt-4o")
+        ai.set_conversation(conversation["messages"])
+        ai_response = ai.add_user_message(user_message)
 
-        # Update conversation in database
-        try:
-            conversations_collection.update_one(
-                {"_id": obj_id}, {"$set": {"messages": conversation.get_conversation()}}
-            )
-        except Exception as e:
-            logger.error(f"Database update error: {str(e)}")
-            response["message"] = "Failed to update conversation"
-            return JSONResponse(status_code=500, content=response)
+        # Add AI response message
+        ai_message = {
+            "role": "assistant",
+            "content": ai_response,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        # Update conversation
+        conversations_collection.update_one(
+            {"_id": obj_id},
+            {
+                "$push": {"messages": {"$each": [new_message, ai_message]}},
+                "$set": {"updatedAt": datetime.utcnow().isoformat()},
+            },
+        )
 
         # Generate audio response if requested
         if get_audio_response:
@@ -195,51 +210,39 @@ async def continue_conversation(
                 with NamedTemporaryFile(suffix=".mp3", delete=False) as temp_output:
                     temp_files.append(temp_output.name)
                     generate_speech(ai_response, output_file=temp_output.name)
-                    response_path = f"/tmp/response_{conversation_id}.mp3"
-                    shutil.copy2(temp_output.name, response_path)
 
-                    async def cleanup_response_file():
-                        try:
-                            if os.path.exists(response_path):
-                                os.unlink(response_path)
-                        except Exception as e:
-                            logger.error(f"Failed to cleanup response file: {str(e)}")
-
-                    with open(response_path, "rb") as audio_file:
+                    with open(temp_output.name, "rb") as audio_file:
                         audio_base64 = base64.b64encode(audio_file.read()).decode(
                             "utf-8"
                         )
 
-                    response["success"] = True
-                    response["message"] = "Response generated successfully"
-                    response["data"] = {
-                        "audio_base64": audio_base64,
-                        "user_message": user_message,
-                        "ai_response": ai_response,
+                    return {
+                        "success": True,
+                        "message": "Response generated successfully",
+                        "data": {
+                            "audio_base64": audio_base64,
+                            "user_message": user_message,
+                            "ai_response": ai_response,
+                        },
                     }
 
-                    return JSONResponse(
-                        status_code=200,
-                        content=response,
-                        background=cleanup_response_file,
-                    )
             except Exception as e:
                 logger.error(f"Speech generation error: {str(e)}")
-                response["success"] = True
-                response["message"] = "Response generated but audio conversion failed"
-                response["data"] = {"ai_response": ai_response}
-                return JSONResponse(status_code=200, content=response)
+                return {
+                    "success": True,
+                    "message": "Response generated but audio conversion failed",
+                    "data": {"ai_response": ai_response, "user_message": user_message},
+                }
 
-        # Return text response
-        response["success"] = True
-        response["message"] = "Response generated successfully"
-        response["data"] = {"ai_response": ai_response}
-        return response
+        return {
+            "success": True,
+            "message": "Response generated successfully",
+            "data": {"ai_response": ai_response, "user_message": user_message},
+        }
 
     except Exception as e:
-        logger.error(f"Error in continue_conversation: {str(e)}")
-        response["message"] = "Internal server error"
-        return JSONResponse(status_code=500, content=response)
+        logger.error(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     finally:
         # Cleanup temporary files
@@ -252,35 +255,28 @@ async def continue_conversation(
 
 
 @router.post("/standalone_tts")
-async def tts(
-    request: TTSRequest
-):
+async def tts(request: TTSRequest):
     response = {"success": False, "message": "", "data": None}
     logger.info(json.dumps(request.dict(), indent=2))
 
     try:
         if not request.text:
-            response["message"] = "Text is required"
-            return JSONResponse(status_code=400, content=response)
+            raise HTTPException(status_code=400, detail="Text is required")
 
         with NamedTemporaryFile(suffix=".mp3", delete=False) as temp_output:
             output_file = temp_output.name
             generate_speech(request.text, output_file=output_file)
 
-            # Read the audio file and encode it to base64
             with open(output_file, "rb") as audio_file:
                 audio_base64 = base64.b64encode(audio_file.read()).decode("utf-8")
 
-            # Prepare the response
             response["success"] = True
             response["message"] = "Text-to-speech conversion successful"
             response["data"] = {"audio_base64": audio_base64}
 
-            # Clean up temporary file after response
             os.unlink(output_file)
-            return JSONResponse(status_code=200, content=response)
+            return response
 
     except Exception as e:
         logger.error(f"TTS generation error: {str(e)}")
-        response["message"] = "Internal server error"
-        return JSONResponse(status_code=500, content=response)
+        raise HTTPException(status_code=500, detail="Internal server error")
