@@ -79,8 +79,8 @@ async def start_conversation(
                     "timestamp": datetime.utcnow().isoformat(),
                 },
             ],
-            "createdAt": datetime.utcnow().isoformat(),
-            "updatedAt": datetime.utcnow().isoformat(),
+            "createdAt": datetime.utcnow(),
+            "updatedAt": datetime.utcnow(),
             "status": "active",
         }
 
@@ -200,7 +200,7 @@ async def continue_conversation(
             {"_id": obj_id},
             {
                 "$push": {"messages": {"$each": [new_message, ai_message]}},
-                "$set": {"updatedAt": datetime.utcnow().isoformat()},
+                "$set": {"updatedAt": datetime.utcnow()},
             },
         )
 
