@@ -2,8 +2,9 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from enum import Enum
 import json
+from utils.database import get_conversations_collection
 import pandas as pd
-from utils.agent_tools import query_df_desc  # Assuming this is a function descriptor
+from utils.agent_tools import query_df_desc, query_mongo_db_desc  # Assuming this is a function descriptor
 
 class Role(Enum):
     SYSTEM = "system"
@@ -13,22 +14,30 @@ class Role(Enum):
 load_dotenv()
 client = OpenAI()
 
-def query_df(lambda_exp: str):
+def query_mongo_db(mongo_query: dict):
     """
-    Function to query a dataframe based on a lambda expression.
+    Function to query a MongoDB collection using a MongoDB query.
+    
+    Args:
+    - mongo_query (dict): MongoDB query as a Python dictionary.
+    
+    Returns:
+    - str: Results of the query or an error message.
     """
-    print("Executing query_df with lambda expression:")
-
+    print("Executing query_mongo_db with MongoDB query:")
+    
     try:
-        df = pd.read_csv('utils/masters_programs.csv')  # Load the dataset
-        if 'lambda' not in str(lambda_exp):
-            lambda_exp = f'lambda row: {lambda_exp}'
-        lambda_func = eval(lambda_exp)
-        filtered_df = df[df.apply(lambda_func, axis=1)]
-        tot = len(filtered_df)
-        return f"found {tot} universities, data: {filtered_df.to_string()}"  # Return the filtered results as a string
+        # Connect to MongoDB
+        collection = get_conversations_collection()
+
+        # Execute the query
+        filtered_docs = list(collection.find(mongo_query))
+        tot = len(filtered_docs)
+
+        return f"Found {tot} documents, data: {filtered_docs}"
+    
     except Exception as e:
-        return f"Error in query_df: {e}"
+        return f"Error in query_mongo_db: {e}"
 
 class OpenAIConversation:
     def __init__(self, model, system_prompt=None):
@@ -48,7 +57,7 @@ class OpenAIConversation:
                 tools=[
                     {
                         "type": "function",
-                        "function": query_df_desc
+                        "function": query_mongo_db_desc
                     }
                 ],
                 messages=self.messages,
@@ -90,16 +99,19 @@ class OpenAIConversation:
         """
         Process function calls made by the assistant and generate an appropriate response.
         """
+        print(tool_calls)
         for tool_call in tool_calls:
-            if tool_call.function.name == "query_df":
+            if tool_call.function.name == "query_mongo_db":
                 try:
+                    print(tool_call)
                     arguments = json.loads(tool_call.function.arguments)
+                    print(arguments)
                     lambda_exp = arguments.get("lambda_exp", "")
                     print(lambda_exp)
 
                     last_query = self.messages[-1]['content']
                     # Call the function and retrieve the result
-                    function_response = query_df(lambda_exp)
+                    function_response = query_mongo_db(lambda_exp)
 
                     # Update query with function response and get new response
                     updated_query = f"Answer the user query {last_query} based on this data: {function_response}. Dont bombard the user with information, just tell them like a consultant about their available options. Try avoiding bullet points"
