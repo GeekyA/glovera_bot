@@ -1,3 +1,4 @@
 ignoreable
 __pycache__
 .env
+env/
