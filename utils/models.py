@@ -4,7 +4,7 @@ from fastapi import File, UploadFile
 
 
 class User(BaseModel):
-    id: int
+    id: str
     # username: str
     # email: str
 
