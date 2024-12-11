@@ -196,7 +196,7 @@ async def continue_conversation(
         }
 
         # Get AI response
-        ai = OpenAIConversation(model="gpt-4o")
+        ai = OpenAIConversation(model="gpt-4o",system_prompt="")
         ai.set_conversation(conversation["messages"])
         ai_response = ai.add_user_message(user_message)
 
