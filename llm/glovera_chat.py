@@ -15,33 +15,6 @@ class Role(Enum):
 load_dotenv()
 client = OpenAI()
 
-def query_mongo_db(mongo_query: dict):
-
-    print("Mongo query: ",mongo_query, "type: ", type(mongo_query))
-    """
-    Function to query a MongoDB collection using a MongoDB query.
-    
-    Args:
-    - mongo_query (dict): MongoDB query as a Python dictionary.
-    
-    Returns:
-    - str: Results of the query or an error message.
-    """
-    print("Executing query_mongo_db with MongoDB query:")
-    
-    try:
-        # Connect to MongoDB
-        collection = get_programs_collection()
-
-        # Execute the query
-        filtered_docs = list(collection.find(mongo_query))
-        tot = len(filtered_docs)
-        print(f"Found {tot} documents, data: {filtered_docs}")
-
-        return f"Found {tot} documents, data: {filtered_docs}"
-    
-    except Exception as e:
-        return f"Error in query_mongo_db: {e}"
     
 def ask_database(natural_language_query):
     natural2mongo = ask_db_agent(natural_language_query)
@@ -60,6 +33,9 @@ def ask_database(natural_language_query):
     except Exception as e:
         return f"Error in query_mongo_db: {e}"
 
+def say_bye():
+    return "bye_bye_message_dont_show_to_user"
+
 ask_db_tool = {
     "name": "ask_database",
     "description": "Queries a database of universities in natural language",
@@ -74,6 +50,11 @@ ask_db_tool = {
         "required": ["natural_language_query"],
         "additionalProperties": False
     }
+}
+
+say_bye_tool = {
+    "name": "say_bye",
+    "description": "This function should be called when the conversation ends",
 }
 class OpenAIConversation:
     def __init__(self, model, system_prompt):
@@ -95,6 +76,10 @@ class OpenAIConversation:
                     {
                         "type": "function",
                         "function": ask_db_tool
+                    },
+                    {
+                        "type": "function",
+                        "function": say_bye_tool
                     }
                 ],
                 messages=self.messages,
@@ -155,6 +140,12 @@ class OpenAIConversation:
 
                 except Exception as e:
                     return f"Error processing function call: {e}"
+
+            if tool_call.function.name == 'say_bye':
+                self.messages.append({"role": Role.USER.value, "content": say_bye()})
+                return self.messages[-1]['content']
+
+
 
     def start_conversation(self, initial_message):
         self.messages.append({"role": Role.ASSISTANT.value, "content": initial_message})
