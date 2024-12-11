@@ -22,7 +22,7 @@ def get_conversations_collection():
 
 def get_programs_collection():
     db = get_db_connection()
-    return db.get_collection('Program')
+    return db.get_collection('ProgramsGloveraFinal')
 
 def get_collection_by_name(db, collection_name):
     return db.get_collection(collection_name)

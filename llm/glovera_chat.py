@@ -5,6 +5,7 @@ import json
 from utils.database import get_programs_collection
 import pandas as pd
 from utils.agent_tools import query_df_desc, query_mongo_db_desc  # Assuming this is a function descriptor
+from llm.agents import ask_db_agent
 
 class Role(Enum):
     SYSTEM = "system"
@@ -41,9 +42,42 @@ def query_mongo_db(mongo_query: dict):
     
     except Exception as e:
         return f"Error in query_mongo_db: {e}"
+    
+def ask_database(natural_language_query):
+    natural2mongo = ask_db_agent(natural_language_query)
+    natural2mongo = eval(natural2mongo)
+    print("query: ",natural2mongo)
+    try:
+        # Connect to MongoDB
+        collection = get_programs_collection()
 
+        # Execute the query
+        filtered_docs = list(collection.find(natural2mongo))
+        tot = len(filtered_docs)
+
+        return f"Found {tot} documents, data: {filtered_docs}"
+    
+    except Exception as e:
+        return f"Error in query_mongo_db: {e}"
+
+ask_db_tool = {
+    "name": "ask_database",
+    "description": "Queries a database of universities in natural language",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "natural_language_query": {
+                "type": "string",
+                "description": "User's query"
+            }
+        },
+        "required": ["natural_language_query"],
+        "additionalProperties": False
+    }
+}
 class OpenAIConversation:
-    def __init__(self, model, system_prompt=None):
+    def __init__(self, model, system_prompt):
+        self.system_prompt = system_prompt
         self.model = model
         self.system_prompt = system_prompt
         self.memory = []
@@ -60,7 +94,7 @@ class OpenAIConversation:
                 tools=[
                     {
                         "type": "function",
-                        "function": query_mongo_db_desc
+                        "function": ask_db_tool
                     }
                 ],
                 messages=self.messages,
@@ -104,16 +138,15 @@ class OpenAIConversation:
         """
         print(tool_calls)
         for tool_call in tool_calls:
-            if tool_call.function.name == "query_mongodb":
+            if tool_call.function.name == "ask_database":
                 try:
                     print(tool_call)
                     arguments = json.loads(tool_call.function.arguments)
                     query = eval(str(arguments))
-                    print(query.keys())
 
                     last_query = self.messages[-1]['content']
                     # Call the function and retrieve the result
-                    function_response = query_mongo_db(query)
+                    function_response = ask_database(query)
 
                     # Update query with function response and get new response
                     updated_query = f"Answer the user query {last_query} based on this data: {function_response}. Dont bombard the user with information, just tell them like a consultant about their available options. Try avoiding bullet points"
