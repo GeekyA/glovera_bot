@@ -1,10 +1,10 @@
-from openai import Client
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-client = Client()
+client = OpenAI()
 
 examples = """Examples of queries:\n
 1. Tell me about some good universities in the USA that teach sociology =>
