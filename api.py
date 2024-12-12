@@ -298,3 +298,7 @@ async def tts(request: TTSRequest):
     except Exception as e:
         logger.error(f"TTS generation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/ping")
+async def ping():
+    return {"message": "pong"}
