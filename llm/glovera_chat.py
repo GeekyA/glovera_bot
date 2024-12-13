@@ -16,8 +16,8 @@ load_dotenv()
 client = OpenAI()
 
     
-def ask_database(natural_language_query):
-    natural2mongo = ask_db_agent(natural_language_query)
+def ask_database(natural_language_query, user_data):
+    natural2mongo = ask_db_agent(natural_language_query, user_data)
     natural2mongo = eval(natural2mongo)
     print("query: ",natural2mongo)
     try:
@@ -57,10 +57,11 @@ say_bye_tool = {
     "description": "This function should be called when the conversation ends",
 }
 class OpenAIConversation:
-    def __init__(self, model, system_prompt):
+    def __init__(self, model, system_prompt, user_data=None):
         self.system_prompt = system_prompt
         self.model = model
         self.system_prompt = system_prompt
+        self.user_data = user_data
         self.memory = []
         self.messages = [{"role": Role.SYSTEM.value, "content": system_prompt}] if system_prompt else []
 
@@ -127,11 +128,14 @@ class OpenAIConversation:
                 try:
                     print(tool_call)
                     arguments = json.loads(tool_call.function.arguments)
-                    query = eval(str(arguments))
+                    query = eval(str(arguments))['natural_language_query']
 
                     last_query = self.messages[-1]['content']
                     # Call the function and retrieve the result
-                    function_response = ask_database(query)
+                 
+                    function_response = ask_database(query, user_data=self.user_data)
+
+                    
 
                     # Update query with function response and get new response
                     updated_query = f"Answer the user query {last_query} based on this data: {function_response}. Dont bombard the user with information, just tell them like a consultant about their available options. Try avoiding bullet points"

@@ -62,8 +62,7 @@ async def start_conversation(
         Answer all their questions regarding courses, universities, eligibility, etc.
 
         IMPORTANT: Remember you have a database of universities, their programs, fees and other info. You can send the user's query to an ask_database tool for querying that database in a natural language, always send the query to ask_database first before answerings.
-        Give a well formatted response with bullet points.
-
+        Give a well formatted response with bullet points in markdown format.
         """
 
         prompt_system += f"Also, here is some additional information about the user to help you respond better {user_info}"
@@ -77,7 +76,7 @@ async def start_conversation(
             model="gpt-4o", system_prompt=prompt_system
         )
 
-        conversation = OpenAIConversation(model="gpt-4o", system_prompt=prompt_system)
+        conversation = OpenAIConversation(model="gpt-4o", system_prompt=prompt_system, user_data=user_info)
         conversation.start_conversation(initial_message=initial_message)
 
         # Create conversation document matching Prisma schema
@@ -155,6 +154,7 @@ async def continue_conversation(
     get_audio_response: bool = Form(False),
     audio_base64: str = Form(None),
 ):
+    
     temp_files = []
     try:
         # Validate conversation_id format
@@ -168,6 +168,9 @@ async def continue_conversation(
         conversation = conversations_collection.find_one({
             "_id": obj_id
         })
+
+        user_id = conversation['userId']
+        user_info = users_collection.find_one({"userId":ObjectId(user_id)})
 
         if not conversation:
             raise HTTPException(
@@ -196,7 +199,7 @@ async def continue_conversation(
         }
 
         # Get AI response
-        ai = OpenAIConversation(model="gpt-4o",system_prompt="")
+        ai = OpenAIConversation(model="gpt-4o",system_prompt="",user_data=user_info)
         ai.set_conversation(conversation["messages"])
         ai_response = ai.add_user_message(user_message)
 
