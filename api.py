@@ -63,6 +63,7 @@ async def start_conversation(
 
         IMPORTANT: Remember you have a database of universities, their programs, fees and other info. You can send the user's query to an ask_database tool for querying that database in a natural language, always send the query to ask_database first before answerings.
         Give a well formatted response with bullet points in markdown format.
+        Don't bombard the user with a huge response, make it concise and engaging, just a summary.
         """
 
         prompt_system += f"Also, here is some additional information about the user to help you respond better {user_info}"
