@@ -19,7 +19,7 @@ client = OpenAI()
     
 def ask_database(natural_language_query, user_data):
     natural2mongo = ask_db_agent(natural_language_query, user_data)
-    natural2mongo = eval(natural2mongo)
+    natural2mongo = json.loads(natural2mongo)
     print("query: ",natural2mongo)
     try:
         # Connect to MongoDB
@@ -39,7 +39,7 @@ def say_bye():
 
 ask_db_tool = {
     "name": "ask_database",
-    "description": "Queries a database of universities in natural language",
+    "description": "Queries a database of universities in natural language, this should be called when data is needed to get an accurate response",
     "parameters": {
         "type": "object",
         "properties": {
@@ -139,7 +139,14 @@ class OpenAIConversation:
                     
 
                     # Update query with function response and get new response
-                    updated_query = f"Answer the user query {last_query} based on this data: {function_response}. Dont bombard the user with information, just tell them like a consultant about their available options. Create your response concise and well formatted"
+                    
+                    updated_query = f"""Answer the user query {last_query} based on this data: {function_response}. 
+                    Dont bombard the user with information, just tell them like a consultant about their available options. Create your response concise and well formatted.\n
+                    Your response will be listened by users after going through a TTS model so it's important you keep it short and engaging. 
+                    You don't have to use all the program data in the conversation.
+                    Don't add the curriculum link in the response or 
+                    """
+
                     self.messages.append({"role": Role.USER.value, "content": updated_query})
                     return self.get_response_no_tools()
 
