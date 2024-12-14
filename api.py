@@ -62,7 +62,7 @@ async def start_conversation(
         Answer all their questions regarding courses, universities, eligibility, etc.
 
         IMPORTANT: Remember you have a database of universities, their programs, fees and other info. You can send the user's query to an ask_database tool for querying that database in a natural language, always send the query to ask_database first before answerings.
-        Give a well formatted response with bullet points in markdown format.
+        Give a well formatted response in markdown format. Formatting is important
         Don't bombard the user with a huge response, make it concise and engaging, just a summary.
         """
 
@@ -74,10 +74,10 @@ async def start_conversation(
             "or any other questions you might have.")
 
         conversation = OpenAIConversation(
-            model="gpt-4o", system_prompt=prompt_system
+            model=os.getenv('CONV_MODEL'), system_prompt=prompt_system
         )
 
-        conversation = OpenAIConversation(model="gpt-4o", system_prompt=prompt_system, user_data=user_info)
+        conversation = OpenAIConversation(model=os.getenv('CONV_MODEL'), system_prompt=prompt_system, user_data=user_info)
         conversation.start_conversation(initial_message=initial_message)
 
         # Create conversation document matching Prisma schema
@@ -200,7 +200,7 @@ async def continue_conversation(
         }
 
         # Get AI response
-        ai = OpenAIConversation(model="gpt-4o",system_prompt="",user_data=user_info)
+        ai = OpenAIConversation(model=os.getenv('CONV_MODEL'),system_prompt="",user_data=user_info)
         ai.set_conversation(conversation["messages"])
         ai_response = ai.add_user_message(user_message)
 

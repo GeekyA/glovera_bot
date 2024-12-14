@@ -4,6 +4,7 @@ from enum import Enum
 import json
 from utils.database import get_programs_collection
 import pandas as pd
+import os
 from utils.agent_tools import query_df_desc, query_mongo_db_desc  # Assuming this is a function descriptor
 from llm.agents import ask_db_agent
 
