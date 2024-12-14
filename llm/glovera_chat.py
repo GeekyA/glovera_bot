@@ -139,7 +139,7 @@ class OpenAIConversation:
                     
 
                     # Update query with function response and get new response
-                    updated_query = f"Answer the user query {last_query} based on this data: {function_response}. Dont bombard the user with information, just tell them like a consultant about their available options. Try avoiding bullet points"
+                    updated_query = f"Answer the user query {last_query} based on this data: {function_response}. Dont bombard the user with information, just tell them like a consultant about their available options. Create your response concise and well formatted"
                     self.messages.append({"role": Role.USER.value, "content": updated_query})
                     return self.get_response_no_tools()
 
