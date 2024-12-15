@@ -27,6 +27,8 @@ def ask_database(natural_language_query, user_data):
 
         # Execute the query
         filtered_docs = list(collection.find(natural2mongo))
+        if len(filtered_docs) > 1:
+            filtered_docs = filtered_docs[0]
         tot = len(filtered_docs)
 
         return f"Found {tot} documents, data: {filtered_docs}"
